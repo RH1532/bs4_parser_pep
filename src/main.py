@@ -88,7 +88,6 @@ def pep(session):
     soup = get_soup(session, MAIN_PEP_URL)
     num_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     rows = num_index.find_all('tr')
-    result = [('Статус', 'Количество')]
     pep_count = {}
     for row in tqdm(rows[1:]):
         a_tag = find_tag(row, 'a')
