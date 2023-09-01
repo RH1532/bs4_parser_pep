@@ -5,16 +5,16 @@ from requests import RequestException
 from exceptions import ParserFindTagException
 
 
-def get_response(session, url):
+REQUEST_EXCEPTION_MESSAGE = 'Возникла ошибка при загрузке страницы {}'
+
+
+def get_response(session, url, encoding='utf-8'):
     try:
         response = session.get(url)
-        response.encoding = 'utf-8'
+        response.encoding = encoding
         return response
     except RequestException:
-        logging.exception(
-            f'Возникла ошибка при загрузке страницы {url}',
-            stack_info=True
-        )
+        raise ParserFindTagException(REQUEST_EXCEPTION_MESSAGE).format(url)
 
 
 def find_tag(soup, tag, attrs=None):
