@@ -3,23 +3,26 @@ import logging
 
 from urllib.parse import urljoin
 from configs import configure_argument_parser
+from collections import defaultdict
 
 import requests_cache
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from constants import BASE_DIR, MAIN_DOC_URL, MAIN_PEP_URL
 from outputs import control_output
 from configs import configure_logging
-from utils import get_response, find_tag
+from utils import find_tag, get_soup
+from exceptions import VersionListNotFoundException
 
 
 ERROR_GETTING_SOUP_URL = "Ошибка при получении супа для URL: {}"
 ARCHIVE_DOWNLOADED = 'Архив был загружен и сохранён: {}'
-PARSER_STARTED = "Парсер запущен!"
-COMMAND_LINE_ARGS = "Аргументы командной строки: {}"
-PARSER_COMPLETED = "Парсер завершил работу."
-ERROR_MESSAGE = "Произошла ошибка: {}"
+PARSER_STARTED = 'Парсер запущен!'
+COMMAND_LINE_ARGS = 'Аргументы командной строки: {}'
+PARSER_COMPLETED = 'Парсер завершил работу.'
+ERROR_MESSAGE = 'Произошла ошибка: {}'
+VERSION_LIST_NOT_FOUND_MESSAGE = 'Не найден список c версиями Python'
+ERROR_MESSAGE = 'Произошла ошибка: {}'
 
 
 def whats_new(session):
@@ -34,11 +37,12 @@ def whats_new(session):
         version_a_tag = section.find('a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
         soup = get_soup(session, version_link)
-        if soup is None:
+        if soup is not None:
+            results.append((version_link,
+                            find_tag(soup, 'h1').text,
+                            find_tag(soup, 'dl').text.replace('\n', ' ')))
+        else:
             logging.error(ERROR_GETTING_SOUP_URL.format(version_link))
-        results.append((version_link,
-                        find_tag(soup, 'h1').text,
-                        find_tag(soup, 'dl').text.replace('\n', ' ')))
     return results
 
 
@@ -51,7 +55,7 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Не найден список c версиями Python')
+        raise VersionListNotFoundException(VERSION_LIST_NOT_FOUND_MESSAGE)
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
@@ -88,35 +92,28 @@ def pep(session):
     soup = get_soup(session, MAIN_PEP_URL)
     num_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     rows = num_index.find_all('tr')
-    pep_count = {}
+    pep_count = defaultdict(int)
     for row in tqdm(rows[1:]):
         a_tag = find_tag(row, 'a')
         href = a_tag['href']
         pep_link = urljoin(MAIN_PEP_URL, href)
         soup = get_soup(session, pep_link)
-        if soup is None:
+        if soup is not None:
+            dl = find_tag(soup, 'dl')
+            dt_tags = dl.find_all('dt')
+            for dt in dt_tags:
+                if dt.text == 'Status:':
+                    dt_status = dt
+                    break
+            pep_status = dt_status.find_next_sibling('dd').string
+            pep_count[pep_status] += 1
+        else:
             logging.error(ERROR_GETTING_SOUP_URL.format(pep_link))
-        dl = find_tag(soup, 'dl')
-        dt_tags = dl.find_all('dt')
-        for dt in dt_tags:
-            if dt.text == 'Status:':
-                dt_status = dt
-                break
-        pep_status = dt_status.find_next_sibling('dd').string
-        status_counter = pep_count.get(pep_status) or 0
-        pep_count[pep_status] = status_counter + 1
     return [
         ('Статус', 'Количество'),
         *pep_count.items(),
         ('Всего', sum(pep_count.values())),
     ]
-
-
-def get_soup(session, url):
-    response = get_response(session, url)
-    if response is None:
-        return None
-    return BeautifulSoup(response.text, 'lxml')
 
 
 MODE_TO_FUNCTION = {
@@ -128,23 +125,26 @@ MODE_TO_FUNCTION = {
 
 
 def main():
-    configure_logging()
-    logging.info(PARSER_STARTED)
+    try:
+        configure_logging()
+        logging.info(PARSER_STARTED)
 
-    arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
-    args = arg_parser.parse_args()
-    logging.info(COMMAND_LINE_ARGS.format(args))
+        arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
+        args = arg_parser.parse_args()
+        logging.info(COMMAND_LINE_ARGS.format(args))
 
-    session = requests_cache.CachedSession()
-    if args.clear_cache:
-        session.cache.clear()
+        session = requests_cache.CachedSession()
+        if args.clear_cache:
+            session.cache.clear()
 
-    parser_mode = args.mode
-    results = MODE_TO_FUNCTION[parser_mode](session)
+        parser_mode = args.mode
+        results = MODE_TO_FUNCTION[parser_mode](session)
 
-    if results is not None:
-        control_output(results, args)
-    logging.info(PARSER_COMPLETED)
+        if results is not None:
+            control_output(results, args)
+        logging.info(PARSER_COMPLETED)
+    except Exception as e:
+        logging.error(ERROR_MESSAGE.format(str(e)))
 
 
 if __name__ == '__main__':
