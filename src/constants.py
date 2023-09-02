@@ -7,6 +7,8 @@ BASE_DIR = Path(__file__).parent
 LOG_DIR = BASE_DIR / 'logs'
 LOG_FILE = LOG_DIR / 'parser.log'
 
+RESULTS = 'results'
+DOWNLOADS = 'downloads'
 DATETIME_FORMAT = '%Y-%m-%d_%H-%M-%S'
 
 EXPECTED_STATUS = {

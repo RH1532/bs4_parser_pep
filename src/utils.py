@@ -13,8 +13,8 @@ def get_response(session, url, encoding='utf-8'):
         response.encoding = encoding
         return response
     except RequestException as e:
-        error_message = REQUEST_EXCEPTION_MESSAGE.format(url, str(e))
-        raise RequestException(error_message) from e
+        raise ConnectionError(REQUEST_EXCEPTION_MESSAGE.format(url,
+                                                               str(e))) from e
 
 
 def find_tag(soup, tag, attrs=None):
@@ -25,5 +25,4 @@ def find_tag(soup, tag, attrs=None):
 
 
 def get_soup(session, url, parser='lxml'):
-    response = get_response(session, url)
-    return BeautifulSoup(response.text, parser)
+    return BeautifulSoup(get_response(session, url).text, parser)

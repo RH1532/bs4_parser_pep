@@ -1,18 +1,16 @@
-import re
 import logging
-
-from urllib.parse import urljoin
-from configs import configure_argument_parser
+import re
 from collections import defaultdict
+from urllib.parse import urljoin
 
 import requests_cache
 from tqdm import tqdm
 
-from constants import BASE_DIR, MAIN_DOC_URL, MAIN_PEP_URL
-from outputs import control_output
-from configs import configure_logging
-from utils import find_tag, get_soup
+from configs import configure_argument_parser, configure_logging
+from constants import BASE_DIR, DOWNLOADS, MAIN_DOC_URL, MAIN_PEP_URL
 from exceptions import VersionListNotFoundException
+from outputs import control_output
+from utils import find_tag, get_soup
 
 
 ERROR_GETTING_SOUP_URL = "Ошибка при получении супа для URL: {}"
@@ -33,16 +31,20 @@ def whats_new(session):
     sections_by_python = div_with_ul.find_all('li',
                                               attrs={'class': 'toctree-l1'})
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
+    error_messages = []
     for section in tqdm(sections_by_python):
         version_a_tag = section.find('a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
-        soup = get_soup(session, version_link)
-        if soup is not None:
+        try:
+            soup = get_soup(session, version_link)
             results.append((version_link,
                             find_tag(soup, 'h1').text,
                             find_tag(soup, 'dl').text.replace('\n', ' ')))
-        else:
-            logging.error(ERROR_GETTING_SOUP_URL.format(version_link))
+        except Exception:
+            error_messages.append(ERROR_GETTING_SOUP_URL.format(version_link))
+            continue
+    for error_message in error_messages:
+        logging.error(error_message)
     return results
 
 
@@ -79,7 +81,7 @@ def download(session):
     pdf_a4_link = pdf_a4_tag['href']
     archive_url = urljoin(downloads_url, pdf_a4_link)
     filename = archive_url.split('/')[-1]
-    downloads_dir = BASE_DIR / 'downloads'
+    downloads_dir = BASE_DIR / DOWNLOADS
     downloads_dir.mkdir(exist_ok=True)
     archive_path = downloads_dir / filename
     response = session.get(archive_url)
@@ -93,12 +95,13 @@ def pep(session):
     num_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     rows = num_index.find_all('tr')
     pep_count = defaultdict(int)
+    error_messages = []
     for row in tqdm(rows[1:]):
         a_tag = find_tag(row, 'a')
         href = a_tag['href']
         pep_link = urljoin(MAIN_PEP_URL, href)
-        soup = get_soup(session, pep_link)
-        if soup is not None:
+        try:
+            soup = get_soup(session, pep_link)
             dl = find_tag(soup, 'dl')
             dt_tags = dl.find_all('dt')
             for dt in dt_tags:
@@ -107,8 +110,11 @@ def pep(session):
                     break
             pep_status = dt_status.find_next_sibling('dd').string
             pep_count[pep_status] += 1
-        else:
-            logging.error(ERROR_GETTING_SOUP_URL.format(pep_link))
+        except Exception:
+            error_messages.append(ERROR_GETTING_SOUP_URL.format(pep_link))
+            continue
+    for error_message in error_messages:
+        logging.error(error_message)
     return [
         ('Статус', 'Количество'),
         *pep_count.items(),
