@@ -8,7 +8,7 @@ Python, BeautifulSoup, argparse, requests, prettytable
 ```bash
 git clone https://github.com/RH1532/bs4_parser_pep.git
 ```
-Cоздать и активировать виртуальное окружение из директории проекта:
+Cоздать и активировать виртуальное окружение:
 ```bash
 python -m venv venv
 ```
@@ -20,4 +20,24 @@ source venv/Scripts/activate
 pip install -r requirements.txt
 ```
 ### Команды запуска
+- whats-new   
+```
+python main.py whats-new
+```
+- latest_versions
+```
+python main.py latest-versions
+```
+- download   
+```
+python main.py download
+```
+- pep
+```
+python main.py pep
+```
 ### Доступ к справке
+Список комманд
+```
+python main.py -h
+```
