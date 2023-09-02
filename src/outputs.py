@@ -31,7 +31,12 @@ def file_output(results, cli_args):
     file_name = f'{parser_mode}_{timestamp}.csv'
     file_path = results_dir / file_name
     with open(file_path, 'w', encoding='utf-8') as f:
-        csv.writer(f, dialect=csv.unix_dialect).writerows(results)
+        csv.writer(
+            f,
+            dialect=csv.unix_dialect
+        ).writerows(
+            results
+        )
     logging.info(FILE_SAVED_MESSAGE.format(file_path))
 
 
@@ -43,6 +48,4 @@ OUTPUT_FUNCTIONS = {
 
 
 def control_output(results, cli_args):
-    selected_output = cli_args.output
-    output_function = OUTPUT_FUNCTIONS.get(selected_output)
-    output_function(results, cli_args)
+    OUTPUT_FUNCTIONS.get(cli_args.output)(results, cli_args)

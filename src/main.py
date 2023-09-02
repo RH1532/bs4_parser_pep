@@ -31,7 +31,7 @@ def whats_new(session):
     sections_by_python = div_with_ul.find_all('li',
                                               attrs={'class': 'toctree-l1'})
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
-    error_messages = []
+    logs = []
     for section in tqdm(sections_by_python):
         version_a_tag = section.find('a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
@@ -40,11 +40,9 @@ def whats_new(session):
             results.append((version_link,
                             find_tag(soup, 'h1').text,
                             find_tag(soup, 'dl').text.replace('\n', ' ')))
-        except Exception:
-            error_messages.append(ERROR_GETTING_SOUP_URL.format(version_link))
-            continue
-    for error_message in error_messages:
-        logging.error(error_message)
+        except ConnectionError:
+            logs.append(ERROR_GETTING_SOUP_URL.format(version_link))
+    list(map(logging.error, logs))
     return results
 
 
@@ -95,7 +93,7 @@ def pep(session):
     num_index = find_tag(soup, 'section', {'id': 'numerical-index'})
     rows = num_index.find_all('tr')
     pep_count = defaultdict(int)
-    error_messages = []
+    logs = []
     for row in tqdm(rows[1:]):
         a_tag = find_tag(row, 'a')
         href = a_tag['href']
@@ -110,11 +108,9 @@ def pep(session):
                     break
             pep_status = dt_status.find_next_sibling('dd').string
             pep_count[pep_status] += 1
-        except Exception:
-            error_messages.append(ERROR_GETTING_SOUP_URL.format(pep_link))
-            continue
-    for error_message in error_messages:
-        logging.error(error_message)
+        except ConnectionError:
+            logs.append(ERROR_GETTING_SOUP_URL.format(pep_link))
+    list(map(logging.error, logs))
     return [
         ('Статус', 'Количество'),
         *pep_count.items(),
